@@ -1,0 +1,154 @@
+import React, {useState} from "react";
+import {api} from "@/services/services";
+import TableCharts from "@/components/TableList/TableCharst";
+import {getDefaultQuery, getParam} from "@/pages/patent/dashboard/detail";
+import SearchNode, {tableToExcel} from "@/components/dashboard/search/searchNode";
+import {POST} from "@/utils/request";
+import {router} from "umi";
+import {message} from "antd";
+
+const Index = ({location}) => {
+    const param = getParam(location);
+    // const defaultQuery = getDefaultQuery(param);
+    const [tag, setTag] = useState(null);
+
+    const renderSimpleForm = (form, handleSearch, handleReset) => {
+        let defaultData = [
+            {type: 'shujulx', key: '1', value: '数据类型:申请量', closable: true},
+            {type: 'zhuanlilx', key: '', value: '排名类型:全部专利', closable: true}
+        ];
+        defaultData = [...defaultData, ...param.defaultValue];
+        const setA = (tag) => {
+            for (const item of tag) {
+                if (item.type === "zhuanlilx") {
+                    if (item.key === "") {
+                        setAxis({...axis, y: [y[3]]});
+                    }
+                    if (item.key === "fmzl") {
+                        setAxis({...axis, y: [y[0]]});
+                    }
+                    if (item.key === "syxx") {
+                        setAxis({...axis, y: [y[1]]});
+                    }
+                    if (item.key === "wgzl") {
+                        setAxis({...axis, y: [y[2]]});
+                    }
+                }
+            }
+        };
+        return <SearchNode form={form} handleReset={handleReset}
+                           onSearCh={setA} onReset={setA}
+                           handleSearch={handleSearch}
+                           onSelect={setTag}
+                           exportExcel={tag => {
+                               let param = {};
+                               for (const item of tag) {
+                                   param[item.type] = JSON.stringify({key: item.key, level: item.level});
+                               }
+                               POST(api.patent.sqr, {...param, flag: 'sqr', type: 'excel'}).then(data => {
+                                   if (data) {
+                                       tableToExcel("申请人数据", data.list, ["申请人名称", "发明专利数量", "实用新型专利数量", "外观专利数量", "总数量"]);
+                                   }
+                               });
+                           }}
+                           disable={{...param.disable}}
+                           defaultSearch={defaultData}
+                           showSearch={['shujulx', 'diqu', 'nianfen', 'hangye', 'zhuanlilx','shenqingrlx']}/>
+    };
+
+
+    // 列表需要显示的字段
+    const columns = [
+        {
+            title: '申请人',
+            dataIndex: 'pubsqr',
+            width: '150px',
+            render: text => {
+                return <a onClick={() => {
+                    POST(api.patent.check_coo, {pubsqr: text}).then(data => {
+                        if (data) {
+                            const count = data.count;
+                            if (count > 0) {
+                                router.push({
+                                    pathname: '/patent/detail/sqr/coo',
+                                    state: {
+                                        key: text,
+                                        count: count,
+                                        redirect: {state: location.state, query: location.query},
+                                        tag: tag,
+                                    },
+                                    query: {
+                                        key: text,
+                                        count: count,
+                                        redirect: {state: location.state, query: location.query},
+                                        tag: tag,
+                                    }
+                                });
+                            } else {
+                                message.warning("该申请人没有合作申请人");
+                            }
+                        }
+                    })
+                }}>{text}</a>
+            },
+        },
+        {
+            title: '发明专利数量',
+            dataIndex: 'inventionNum',
+            width: '80px',
+        },
+        {
+            title: '实用新型数量',
+            dataIndex: 'utilityNum',
+            width: '80px',
+        },
+        {
+            title: '外观设计数量',
+            dataIndex: 'designNum',
+            width: '80px',
+        },
+        {
+            title: '总数量',
+            dataIndex: 'totalNum',
+            width: '80px',
+        },
+    ];
+    // charts x y 轴
+    const y = [
+        {key: "inventionNum", name: "发明专利数量"},// y 轴显示的key 及名称
+        {key: "utilityNum", name: "实用新型数量"},
+        {key: "designNum", name: "外观设计数量"},
+        {key: "totalNum", name: "全部专利数量"}
+    ];
+    const [axis, setAxis] = useState({
+        x: 'pubsqr',// x 显示的 key
+        y: [y[3]]
+    });
+
+    let query = {};
+    if (tag) {
+        for (const item of tag) {
+            query[item.type] = JSON.stringify({key: item.key, level: item.level});
+        }
+    } else {
+        query = getDefaultQuery(param);
+    }
+    return (
+        <TableCharts
+            rowKey="code"
+            type={"bar"}
+            search={renderSimpleForm}
+            api={api.patent.sqr}
+            axis={axis}
+            height={400*1.5}
+            rotate={40}
+            rotateCount={14}
+            nodeName="list"
+            params={{...query, flag: 'sqr'}}
+            columns={columns}
+        />
+    );
+};
+
+export default Index;
+
